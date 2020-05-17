@@ -1,0 +1,9 @@
+.ipynb*
+*.egg-info
+*.ipynb
+env/*
+build/*
+dist/*
+deploy.sh
+postgresql/*
+rabbitmq/*

@@ -1,0 +1,41 @@
+registry_url: us.icr.io
+repository: nyds_development/aicore-airflow
+image: aicore-airflow
+tag: 0.0.5
+username: iamapikey
+password: TkRkDSGwr-j89xQYsk-ZIE2FzYIKb9CvN4QEGN9pQRBW
+local_dir: /Users/paulokuong/Documents/personal/airflow-run
+webserver_port: 8000
+flower_port: 5555
+airflow_cfg:
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  # AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:test@192.168.1.151:5432/postgres
+  # AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:test@192.168.1.151:5432/postgres
+  # AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:6yavGXx!zT4g3DF@aicore-airflow-db.cszrtjgglho3.us-east-1.rds.amazonaws.com:5432/airflow
+  # AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:6yavGXx!zT4g3DF@aicore-airflow-db.cszrtjgglho3.us-east-1.rds.amazonaws.com:5432/airflow
+  # AIRFLOW__CELERY__BROKER_URL: pyamqp://guest:guest@192.168.1.151:5672//
+  AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
+  AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs
+  AIRFLOW_HOME: /usr/local/airflow
+rabbitmq:
+  name: rabbitmq
+  username: guest
+  password: guest
+  host: 192.168.1.151
+  virtual_host: /
+  image: rabbitmq:3-management
+  home: /var/lib/rabbitmq
+  ui_port: 15672
+  port: 5672
+postgresql:
+  name: postgresql
+  username: postgres
+  password: test
+  host:
+  image: postgres
+  data: /var/lib/postgresql/data
+  port: 5432
+  env:
+    PGDATA: /var/lib/postgresql/data/pgdata
+    POSTGRES_PASSWORD: test
