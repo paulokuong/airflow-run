@@ -1,9 +1,14 @@
-registry_url: us.icr.io
-repository: nyds_development/aicore-airflow
-image: aicore-airflow
-tag: 0.0.5
-username: iamapikey
-password: TkRkDSGwr-j89xQYsk-ZIE2FzYIKb9CvN4QEGN9pQRBW
+# registry_url: us.icr.io
+# repository: nyds_development/aicore-airflow
+# image: aicore-airflow
+# tag: 0.0.5
+private_registry: False
+registry_url: registry.hub.docker.com
+repository: pkuong/airflow-run
+image: airflow-run
+tag: latest
+username: pkuong
+password: 14c9f690-0614-49a6-81f7-165f59a02d38
 local_dir: /Users/paulokuong/Documents/personal/airflow-run
 webserver_port: 8000
 flower_port: 5555
@@ -32,7 +37,7 @@ postgresql:
   name: postgresql
   username: postgres
   password: test
-  host:
+  host: 192.168.1.151
   image: postgres
   data: /var/lib/postgresql/data
   port: 5432

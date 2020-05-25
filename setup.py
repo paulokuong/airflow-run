@@ -12,7 +12,8 @@ setup(name='airflow-run',
           'docker==4.2.0',
           'pyyaml==5.3.1',
           'sqlalchemy==1.3.16',
-          'pika==1.1.0'
+          'pika==1.1.0',
+          'psycopg2==2.8.5'
       ],
       classifiers=[
           'Development Status :: 3 - Alpha',
