@@ -25,8 +25,11 @@ Requirements:
 
 Setup
 -----
-1. Update username, password and IP in config.yaml file.
-Run the following commands to start Rabbitmq, Postgresql and other Airflow services:
+1. Update the followings in config.yaml file.
+  a. local_dir
+  b. username password for postgresql and rabbitmq.
+  c. host (IP) for postgresql and rabbitmq.
+2. Run the following commands to start Rabbitmq, Postgresql and other Airflow services:
 
 Running the tool:
 -----------------

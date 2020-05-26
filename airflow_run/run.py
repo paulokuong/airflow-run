@@ -237,7 +237,14 @@ class AirflowRun(object):
             },
             command=command)
         if ports:
-            output.update(ports={'{}/tcp'.format(p): p for p in ports})
+            ports_dic = {}
+            for p in ports:
+                if type(p) == int:
+                    ports_dic['{}/tcp'.format(p)] = p
+                else:
+                    ports_dic['{}/tcp'.format(p.split(':')[0])
+                              ] = p.split(':')[1]
+            output.update(ports=ports_dic)
         return output
 
     def start_postgresql(self):
@@ -329,11 +336,15 @@ class AirflowRun(object):
         return self.client.containers.run(
             **self._get_run_dict(name, ["scheduler"], detach=detach))
 
-    def start_worker(self, queue, name='airflow_worker', detach=True):
+    def start_worker(
+            self, queue, worker_log_server_port=8793, name='airflow_worker',
+            detach=True):
         """Docker run airflow worker.
         Args:
             name (str): name of the container.
             detach (bool[optional]): True for detach container.
+            worker_log_server_port (int|str[optional]): worker log server port.
+                if str, format is: "inbound port:outbound port"
         """
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
@@ -342,9 +353,12 @@ class AirflowRun(object):
         assert self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection]), (
             'Required connections not satisfied.')
+        outbound_port = worker_log_server_port + len(running_workers)
         return self.client.containers.run(
             **self._get_run_dict(
-                name, ["worker", "-q", queue], [8793], detach=True))
+                name, ["worker", "-q", queue],
+                ['{}:{}'.format(worker_log_server_port, outbound_port)],
+                detach=True))
 
     def start_flower(self, name='airflow_flower', detach=True):
         """Docker run airflow worker.
@@ -383,6 +397,9 @@ def cli():
         '--build', dest='build', action='store_true',
         help='Path to the Dockerfile.')
     parser.add_argument(
+        '--pull', dest='pull', action='store_true',
+        help='Pull latest image.')
+    parser.add_argument(
         '--list', dest='list', action='store_true',
         help='List all running services.')
     parser.add_argument(
@@ -401,9 +418,13 @@ def cli():
     parser.add_argument(
         '--queue', dest='queue',
         help='Queue name for the worker.')
+    parser.add_argument(
+        '--worker_log_server_port', dest='worker_log_server_port',
+        help='worker_log_server_port for worker')
     parser.set_defaults(queue='default')
     parser.set_defaults(config='./config.yaml')
     parser.set_defaults(dockerfile='./Dockerfile')
+    parser.set_defaults(worker_log_server_port=8793)
     args = parser.parse_args()
 
     if not args.build and not args.run and not args.list and not args.kill \
@@ -445,7 +466,9 @@ def cli():
         a.client.containers.prune()
         a.pull()
         if args.run == "worker":
-            a.start_worker(args.queue)
+            a.start_worker(
+                queue=args.queue,
+                worker_log_server_port=args.worker_log_server_port)
         elif args.run == "postgresql":
             a.start_postgresql()
             choice = input('Run initdb? (y/n): ') or 'n'
