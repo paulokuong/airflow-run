@@ -15,17 +15,13 @@ Goal
 
 | To provide a quick way to setup Airflow Multi-Node Cluster (a.k.a. Celery Executor Setup).
 
-Setup
+Steps
 -----
-
-| 1. Update the followings in config.yaml file.
-  a. local_dir
-  b. username password for postgresql and rabbitmq.
-  c. host (IP) for postgresql and rabbitmq.
-2. Run the following commands to start Rabbitmq, Postgresql and other Airflow services:
+1. Generate config yaml file.
+2. Run commands to start Rabbitmq, Postgresql and other Airflow services:
 
 Generate config file:
----------------------
+------------------------
 
 Run the following and follow the prompt to generate config file.
 
@@ -34,7 +30,7 @@ Run the following and follow the prompt to generate config file.
 afr --generate_config_file
 
 Running the tool:
------------------
+--------------------
 
 .. code:: python
 

@@ -23,16 +23,9 @@ Requirements:
 -------------
 1. Docker
 
-Setup
------
-1. Update the followings in config.yaml file.
-
-  a. local_dir
-
-  b. username password for postgresql and rabbitmq.
-
-  c. host (IP) for postgresql and rabbitmq.
-
+Setup steps
+-----------
+1. Generate config yaml file.
 2. Run the following commands to start Rabbitmq, Postgresql and other Airflow services:
 
 Generate config file:
