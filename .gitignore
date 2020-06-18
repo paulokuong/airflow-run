@@ -2,8 +2,12 @@
 *.egg-info
 *.ipynb
 env/*
+.env/*
 build/*
 dist/*
 deploy.sh
 postgresql/*
 rabbitmq/*
+dags/*
+pgdata/*
+config.yaml

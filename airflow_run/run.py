@@ -394,6 +394,9 @@ class AirflowRun(object):
 def cli():
     parser = argparse.ArgumentParser(description='Airflow Run')
     parser.add_argument(
+        '--generate_config_file', dest='generate_config_file',
+        action='store_true', help='Generate config file.')
+    parser.add_argument(
         '--build', dest='build', action='store_true',
         help='Path to the Dockerfile.')
     parser.add_argument(
@@ -428,7 +431,7 @@ def cli():
     args = parser.parse_args()
 
     if not args.build and not args.run and not args.list and not args.kill \
-            and not args.pull:
+            and not args.pull and not args.generate_config_file:
         parser.print_help()
     if args.build:
         a = AirflowRun(args.config)
@@ -437,6 +440,30 @@ def cli():
         if not args.dockerfile or not os.path.exists(args.dockerfile):
             raise Exception('--dockerfile path to Dockerfile is invalid.')
         a.build(os.path.dirname(args.dockerfile))
+    elif args.generate_config_file:
+        path = os.path.join(os.path.dirname(__file__), 'config-template.yaml')
+        with open(path, 'r') as fr:
+            content = yaml.safe_load(fr)
+            local_dir = input(
+                "Please enter local path which contains /dags and /logs: ")
+            rabbitmq_host = input("Please enter rabbitmq host/ip: ")
+            rabbitmq_username = input("Please enter rabbitmq username: ")
+            rabbitmq_password = input("Please enter rabbitmq password: ")
+            postgresql_host = input("Please enter postgresql host/ip: ")
+            postgresql_username = input("Please enter postgresql username: ")
+            postgresql_password = input("Please enter postgresql password: ")
+            content['local_dir'] = local_dir
+            content['rabbitmq']['host'] = rabbitmq_host
+            content['rabbitmq']['username'] = rabbitmq_username
+            content['rabbitmq']['password'] = rabbitmq_password
+            content['postgresql']['host'] = postgresql_host
+            content['postgresql']['username'] = postgresql_username
+            content['postgresql']['password'] = postgresql_password
+            content['postgresql']['env']['POSTGRES_PASSWORD'] = postgresql_password
+        with open('config.yaml', 'w') as fw:
+            yaml.dump(content, fw)
+        print('Created file: {}'.format(os.path.realpath('config.yaml')))
+
     elif args.list:
         a = AirflowRun(args.config)
         for i in a.list():

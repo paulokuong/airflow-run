@@ -13,7 +13,7 @@ Requirements
 Goal
 ----
 
-| To provide an easy way to deploy Airflow Multi-Node Cluster (a.k.a. Celery Executor Setup).
+| To provide a quick way to setup Airflow Multi-Node Cluster (a.k.a. Celery Executor Setup).
 
 Setup
 -----
@@ -23,6 +23,15 @@ Setup
   b. username password for postgresql and rabbitmq.
   c. host (IP) for postgresql and rabbitmq.
 2. Run the following commands to start Rabbitmq, Postgresql and other Airflow services:
+
+Generate config file:
+---------------------
+
+Run the following and follow the prompt to generate config file.
+
+.. code::python
+
+afr --generate_config_file
 
 Running the tool:
 -----------------
@@ -43,17 +52,19 @@ Default Config yaml file:
 
 private_registry: False
 registry_url: registry.hub.docker.com
+username: "" # username for logging in  private registry
+password: "" # password for logging in private registry
 repository: pkuong/airflow-run
 image: airflow-run
 tag: latest
-local_dir: /Users/paulokuong/Documents/personal/airflow-run
+local_dir: {local directory where you want to mount /dags and /logs folder}
 webserver_port: 8000
 flower_port: 5555
 airflow_cfg:
   AIRFLOW__CORE__EXECUTOR: CeleryExecutor
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-  AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
-  AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs
+  AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags # /dags directory in container
+  AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs # /logs directory in container
   AIRFLOW_HOME: /usr/local/airflow
 rabbitmq:
   name: rabbitmq
@@ -69,13 +80,14 @@ postgresql:
   name: postgresql
   username: {username}
   password: {password}
-  host: {IP}
+  host: {host}
   image: postgres
   data: /var/lib/postgresql/data
   port: 5432
   env:
     PGDATA: /var/lib/postgresql/data/pgdata
     POSTGRES_PASSWORD: {password}
+
 
 Docker image
 ------------
