@@ -27,7 +27,7 @@ Run the following and follow the prompt to generate config file.
 
 .. code::python
 
-afr --generate_config_file
+    afr --generate_config_file
 
 Running the tool:
 --------------------
@@ -92,7 +92,7 @@ Docker image
 
 .. code:: python
 
-https://hub.docker.com/repository/docker/pkuong/airflow-run
+    https://hub.docker.com/repository/docker/pkuong/airflow-run
 
 Building the image:
 -------------------
@@ -101,7 +101,7 @@ Building the image:
 
 .. code:: python
 
-afd --build --config_path={absolute path to config.yaml} --dockerfile_path={absolute path to directory which contains Dockerfile}
+    afd --build --config_path={absolute path to config.yaml} --dockerfile_path={absolute path to directory which contains Dockerfile}
 
 Contributors
 ------------
