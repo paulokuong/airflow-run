@@ -1,5 +1,3 @@
-| |Build Status|
-
 Airflow Run
 ----------------
 
@@ -23,9 +21,7 @@ Steps
 Generate config file:
 ------------------------
 
-Run the following and follow the prompt to generate config file.
-
-.. code::python
+.. code:: python
 
     afr --generate_config_file
 
