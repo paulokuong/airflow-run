@@ -1,11 +1,13 @@
-import docker
-import os
-import yaml
 import argparse
-from sqlalchemy import create_engine
+import docker
 import pika
+import os
+from sqlalchemy import create_engine
 import time
-from collections import OrderedDict
+import yaml
+
+from airflow_run.decorators import retry
+from airflow_run.utils import logger_factory
 
 
 class AirflowRun(object):
@@ -15,9 +17,11 @@ class AirflowRun(object):
         Args:
             config (str): path to config.yaml file.
         """
+        self._logger = logger_factory()
         self.supported_services = [
-            'flower', 'initdb', 'postgresql', 'rabbitmq', 'scheduler',
-            'webserver', 'worker', 'list']
+            'flower', 'initdb', 'postgresql', 'postgres', 'rabbitmq',
+            'scheduler', 'webserver', 'worker', 'list', 'airflow_scheduler',
+            'airflow_webserver', 'airflow_worker']
         with open(os.path.realpath(config), "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
             self.client = docker.from_env()
@@ -52,49 +56,47 @@ class AirflowRun(object):
             assert key in self.config['postgresql'], (
                 'key "{}" is not found in yaml.'.format(key))
 
+    @retry(5)
     def check_db_connection(self) -> bool:
         """Check if postgresql can be connected.
         Bubble up exception when fails.
         """
-        try:
-            airflow_cfg = self.config['airflow_cfg']
-            db_string = airflow_cfg.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
-            result_backend = airflow_cfg.get('AIRFLOW__CELERY__RESULT_BACKEND')
-            if not db_string or not result_backend:
-                db_string = (
-                    "postgresql+psycopg2://{}:{}@{}:{}/postgres").format(
-                    self.config['postgresql']['username'],
-                    self.config['postgresql']['password'],
-                    self.config['postgresql']['host'],
-                    self.config['postgresql']['port'])
-            engine = create_engine(db_string)
-            engine.table_names()
-            return True
-        except Exception as err:
-            return False
-        return False
+        airflow_cfg = self.config['airflow_cfg']
+        db_string = airflow_cfg.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
+        result_backend = airflow_cfg.get(
+            'AIRFLOW__CELERY__RESULT_BACKEND')
+        if not db_string or not result_backend:
+            db_string = (
+                "postgresql+psycopg2://{}:{}@{}:{}/postgres").format(
+                self.config['postgresql']['username'],
+                self.config['postgresql']['password'],
+                self.config['postgresql']['host'],
+                self.config['postgresql']['port'])
+        engine = create_engine(db_string)
+        engine.table_names()
+        self._logger.debug('Database connection is: OK')
+        return True
 
+    @retry(5)
     def check_rabbitmq_connection(self) -> bool:
         """Check Rabbitmq connection."""
-        try:
-            credentials = pika.PlainCredentials(
-                self.config['rabbitmq']['username'],
-                self.config['rabbitmq']['password'])
-            parameters = pika.ConnectionParameters(
-                host=self.config['rabbitmq']['host'],
-                port=self.config['rabbitmq']['port'],
-                virtual_host=self.config['rabbitmq']['virtual_host'],
-                credentials=credentials)
-            connection = pika.BlockingConnection(parameters)
-            if connection.is_open:
-                print('Rabbitmq is: OK')
-                connection.close()
-                return True
-        except Exception as err:
-            return False
-        return False
 
-    def check_required_connections(self, funcs, echo=True) -> bool:
+        credentials = pika.PlainCredentials(
+            self.config['rabbitmq']['username'],
+            self.config['rabbitmq']['password'])
+        parameters = pika.ConnectionParameters(
+            host=self.config['rabbitmq']['host'],
+            port=self.config['rabbitmq']['port'],
+            virtual_host=self.config['rabbitmq']['virtual_host'],
+            credentials=credentials)
+        connection = pika.BlockingConnection(parameters)
+        if connection.is_open:
+            self._logger.debug('Rabbitmq connection is: OK')
+            connection.close()
+            return True
+        raise Exception('Fail to connect to Rabbitmq.')
+
+    def check_required_connections(self, funcs) -> bool:
         """Check required connections.
 
         Args:
@@ -106,11 +108,6 @@ class AirflowRun(object):
         """
         test_pass = True
         for func in funcs:
-            if echo:
-                print(
-                    '{} result: {}'.format(
-                        func.__name__,
-                        'OK' if func() else 'FAILED!!'))
             test_pass &= func()
         return test_pass
 
@@ -132,15 +129,15 @@ class AirflowRun(object):
             raise Exception(
                 'Private registry flag is False. Please make sure your are '
                 'building and pushing to private registry.')
-        print(self.client.images.build(
+        self._logger.debug(self.client.images.build(
             path=dockerfile, buildargs=self.config['airflow_cfg'],
-            tag=self.config['image']))
+            tag=self.config['tag']))
         image = self.client.images.get(self.config['image'])
         image.tag(
             repository='{}/{}'.format(
                 self.config['registry_url'], self.config['repository']),
             tag=self.config['tag'])
-        print(self.client.images.push(
+        self._logger.debug(self.client.images.push(
             '{}/{}'.format(
                 self.config['registry_url'], self.config['repository']),
             tag=self.config['tag']))
@@ -163,9 +160,10 @@ class AirflowRun(object):
         """
         return [
             {"id": i.short_id, "name": i.name}
-            for i in self.client.containers.list()]
+            for i in self.client.containers.list()
+            if i.name in self.supported_services]
 
-    def kill(self, command="airflow_server"):
+    def kill(self, command):
         """Kill container by name.
 
         Args:
@@ -226,6 +224,7 @@ class AirflowRun(object):
             detach (bool[optional]): True for detaching container.
         """
 
+        airflow_cfg = self.config['airflow_cfg']
         output = dict(
             image='{registry_url}/{repository}:{tag}'.format(
                 registry_url=self.config['registry_url'],
@@ -261,7 +260,7 @@ class AirflowRun(object):
         """Start postgres instance.
         """
         if self.exists(self.config['postgresql']['name']):
-            print('Container {} already exists.'.format(
+            self._logger.debug('Container {} already exists.'.format(
                 self.config['postgresql']['name']
             ))
             return
@@ -286,10 +285,13 @@ class AirflowRun(object):
             }
         )
 
+    def start_postgres(self):
+        return self.start_postgresql()
+
     def start_rabbitmq(self):
         """Docker run rabbitmq default image."""
         if self.exists(self.config['rabbitmq']['name']):
-            print('Container {} already exists.'.format(
+            self._logger.debug('Container {} already exists.'.format(
                 self.config['rabbitmq']['name']
             ))
             return
@@ -303,6 +305,10 @@ class AirflowRun(object):
                     self.config['rabbitmq']['ui_port'],
                     self.config['rabbitmq']['port']]
             },
+            environment=[
+                "{}={}".format(k, v)
+                for k, v in self.config['rabbitmq']['env'].items()
+            ],
             volumes={
                 '{}/rabbitmq'.format(self.config['local_dir']): {
                     'bind': self.config['rabbitmq']['home'],
@@ -311,7 +317,7 @@ class AirflowRun(object):
             }
         )
 
-    def start_webserver(self, name='airflow_server', detach=True):
+    def start_webserver(self, name='airflow_webserver', detach=True):
         """Docker run airflow webserver.
         Args:
             name (str): name of the container.
@@ -321,14 +327,16 @@ class AirflowRun(object):
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
             name += '_{}'.format(len(running_workers))
-        assert self.check_required_connections(
-            [self.check_db_connection, self.check_rabbitmq_connection]), (
-            'Required connections not satisfied.')
+        self.check_required_connections(
+            [self.check_db_connection, self.check_rabbitmq_connection])
         return self.client.containers.run(
             **self._get_run_dict(name, [
                 "webserver", "-p",
                 str(self.config['webserver_port'])
             ], [self.config['webserver_port']], detach=detach))
+
+    def start_airflow_webserver(self, **kwargs):
+        return self.start_webserver(**kwargs)
 
     def start_scheduler(self, name='airflow_scheduler', detach=True):
         """Docker run airflow scheduler.
@@ -340,11 +348,13 @@ class AirflowRun(object):
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
             name += '_{}'.format(len(running_workers))
-        assert self.check_required_connections(
-            [self.check_db_connection, self.check_rabbitmq_connection]), (
-            'Required connections not satisfied.')
+        self.check_required_connections(
+            [self.check_db_connection, self.check_rabbitmq_connection])
         return self.client.containers.run(
             **self._get_run_dict(name, ["scheduler"], detach=detach))
+
+    def start_airflow_scheduler(self, **kwargs):
+        return self.start_scheduler(**kwargs)
 
     def start_worker(
             self, queue, worker_log_server_port=8793, name='airflow_worker',
@@ -360,15 +370,17 @@ class AirflowRun(object):
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
             name += '_{}'.format(len(running_workers))
-        assert self.check_required_connections(
-            [self.check_db_connection, self.check_rabbitmq_connection]), (
-            'Required connections not satisfied.')
+        self.check_required_connections(
+            [self.check_db_connection, self.check_rabbitmq_connection])
         outbound_port = worker_log_server_port + len(running_workers)
         return self.client.containers.run(
             **self._get_run_dict(
                 name, ["worker", "-q", queue],
                 ['{}:{}'.format(worker_log_server_port, outbound_port)],
                 detach=True))
+
+    def start_airflow_worker(self, **kwargs):
+        return self.start_worker(**kwargs)
 
     def start_flower(self, name='airflow_flower', detach=True):
         """Docker run airflow worker.
@@ -380,39 +392,59 @@ class AirflowRun(object):
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
             name += '_{}'.format(len(running_workers))
-        assert self.check_required_connections(
-            [self.check_db_connection, self.check_rabbitmq_connection]), (
-            'Required connections not satisfied.')
+        self.check_required_connections(
+            [self.check_db_connection, self.check_rabbitmq_connection])
         return self.client.containers.run(
             **self._get_run_dict(name, [
                 "flower", "-p", str(self.config['flower_port'])
             ], [self.config['flower_port']], detach=True))
 
-    def start_initdb(self, detach=True, echo=True):
+    def start_initdb(self, detach=False):
         """Docker run airflow initdb
         Args:
             detach (bool[optional]): True for detach container.
             echo (bool[optional]): True for printing out status.
         """
-        timeout = 30
-        successful = False
-        while not successful and timeout > 0:
-            try:
-                assert self.check_required_connections(
-                    [self.check_db_connection], echo), (
-                    'Required connections not satisfied.')
-                successful = True
-            except Exception:
-                time.sleep(1)
-                timeout -= 1
+        self.check_required_connections([self.check_db_connection])
+        self.client.containers.prune()
         return self.client.containers.run(
-            **self._get_run_dict('initdb', ["initdb"], detach=True))
+            **self._get_run_dict('initdb', ["initdb"], detach=detach))
+
+    def generate_config(self):
+        """Generate config yaml file
+        """
+        path = os.path.join(os.path.dirname(__file__), 'config-template.yaml')
+        with open(path, 'r') as fr:
+            content = yaml.safe_load(fr)
+            local_dir = input(
+                "Please enter local path which contains /dags and /logs: ")
+            rabbitmq_host = input("Please enter rabbitmq host/ip: ")
+            rabbitmq_username = input("Please enter rabbitmq username: ")
+            rabbitmq_password = input("Please enter rabbitmq password: ")
+            postgresql_host = input("Please enter postgresql host/ip: ")
+            postgresql_username = input("Please enter postgresql username: ")
+            postgresql_password = input("Please enter postgresql password: ")
+            content['local_dir'] = local_dir
+            content['rabbitmq']['host'] = rabbitmq_host
+            content['rabbitmq']['username'] = rabbitmq_username
+            content['rabbitmq']['password'] = rabbitmq_password
+            content['rabbitmq']['env']['RABBITMQ_DEFAULT_USER'] = rabbitmq_username
+            content['rabbitmq']['env']['RABBITMQ_DEFAULT_PASS'] = rabbitmq_password
+            content['postgresql']['host'] = postgresql_host
+            content['postgresql']['username'] = postgresql_username
+            content['postgresql']['password'] = postgresql_password
+            content['postgresql']['env']['POSTGRES_USER'] = postgresql_username
+            content['postgresql']['env']['POSTGRES_PASSWORD'] = postgresql_password
+        with open('config.yaml', 'w') as fw:
+            yaml.dump(content, fw, default_flow_style=False, sort_keys=False)
+        self._logger.debug('Created file: {}'.format(
+            os.path.realpath('config.yaml')))
 
 
 def cli():
     parser = argparse.ArgumentParser(description='Airflow Run')
     parser.add_argument(
-        '--generate_config_file', dest='generate_config_file',
+        '--generate_config', dest='generate_config',
         action='store_true', help='Generate config file.')
     parser.add_argument(
         '--build', dest='build', action='store_true',
@@ -449,47 +481,24 @@ def cli():
     args = parser.parse_args()
 
     if not args.build and not args.run and not args.list and not args.kill \
-            and not args.pull and not args.generate_config_file:
+            and not args.pull and not args.generate_config:
         parser.print_help()
+
+    airflow_run = AirflowRun(args.config)
+
     if args.build:
-        a = AirflowRun(args.config)
         if not os.path.exists(args.config):
             raise Exception('--config path to config file is invalid.')
         if not args.dockerfile or not os.path.exists(args.dockerfile):
             raise Exception('--dockerfile path to Dockerfile is invalid.')
-        a.build(os.path.dirname(args.dockerfile))
-    elif args.generate_config_file:
-        path = os.path.join(os.path.dirname(__file__), 'config-template.yaml')
-        with open(path, 'r') as fr:
-            content = yaml.safe_load(fr)
-            local_dir = input(
-                "Please enter local path which contains /dags and /logs: ")
-            rabbitmq_host = input("Please enter rabbitmq host/ip: ")
-            rabbitmq_username = input("Please enter rabbitmq username: ")
-            rabbitmq_password = input("Please enter rabbitmq password: ")
-            postgresql_host = input("Please enter postgresql host/ip: ")
-            postgresql_username = input("Please enter postgresql username: ")
-            postgresql_password = input("Please enter postgresql password: ")
-            content['local_dir'] = local_dir
-            content['rabbitmq']['host'] = rabbitmq_host
-            content['rabbitmq']['username'] = rabbitmq_username
-            content['rabbitmq']['password'] = rabbitmq_password
-            content['postgresql']['host'] = postgresql_host
-            content['postgresql']['username'] = postgresql_username
-            content['postgresql']['password'] = postgresql_password
-            content['postgresql']['env']['POSTGRES_PASSWORD'] = postgresql_password
-        with open('config.yaml', 'w') as fw:
-            yaml.dump(content, fw, default_flow_style=False, sort_keys=False)
-        print('Created file: {}'.format(os.path.realpath('config.yaml')))
-
+        airflow_run.build(os.path.dirname(args.dockerfile))
+    elif args.generate_config:
+        airflow_run.generate_config()
     elif args.list:
-        a = AirflowRun(args.config)
-        for i in a.list():
-            if i in a.supported_services:
-                print('id: {} name: {}'.format(i['id'], i['name']))
+        for i in airflow_run.list():
+            print('id: {} name: {}'.format(i['id'], i['name']))
     elif args.kill:
-        a = AirflowRun(args.config)
-        running_services = a.list()
+        running_services = airflow_run.list()
         if len(running_services) > 0:
             print('\nContainers:')
             print('-----------')
@@ -500,33 +509,29 @@ def cli():
             choice = input('Choose one: ')
             if choice == 'a':
                 for i in running_services:
-                    a.kill(i['name'])
+                    airflow_run.kill(i['name'])
             elif choice == 'c':
                 return
             else:
-                a.kill(running_services[int(choice)]['name'])
+                airflow_run.kill(running_services[int(choice)]['name'])
         else:
             print('No running service found.')
     elif args.run:
-        a = AirflowRun(args.config)
-        a.client.containers.prune()
-        a.pull()
+        airflow_run.client.containers.prune()
+        airflow_run.pull()
         if args.run == "worker":
-            a.start_worker(
+            airflow_run.start_worker(
                 queue=args.queue,
                 worker_log_server_port=args.worker_log_server_port)
-            a.start_initdb(echo=True)
+            airflow_run.start_initdb()
         elif args.run == "postgresql":
-            a.start_postgresql()
-            choice = input('Run initdb? (y/n): ') or 'n'
-            if choice.lower() == 'y':
-                print('Running initdb...')
-                self.start_initdb(echo=True)
-        elif args.run in a.supported_services:
-            getattr(a, 'start_{}'.format(args.run))()
-            a.start_initdb(echo=True)
+            airflow_run.start_postgresql()
+            airflow_run.start_initdb()
+        elif args.run in airflow_run.supported_services:
+            getattr(airflow_run, 'start_{}'.format(args.run))()
+            airflow_run.start_initdb()
         else:
             print('\nAvailable services:')
             print('-------------------')
-            for index, i in enumerate(a.supported_services):
+            for index, i in enumerate(airflow_run.supported_services):
                 print("{}. {}".format(index, i))

@@ -11,3 +11,4 @@ rabbitmq/*
 dags/*
 pgdata/*
 config.yaml
+airflow_run/__pycache__/*

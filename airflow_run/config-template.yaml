@@ -24,6 +24,9 @@ rabbitmq:
   home: /var/lib/rabbitmq
   ui_port: 15672
   port: 5672
+  env:
+    RABBITMQ_DEFAULT_USER: {username}
+    RABBITMQ_DEFAULT_PASS: {password}
 postgresql:
   name: postgresql
   username: {username}
