@@ -16,7 +16,7 @@ class AirflowRun(object):
         """
         self.supported_services = [
             'flower', 'initdb', 'postgresql', 'rabbitmq', 'scheduler',
-            'webserver', 'worker']
+            'webserver', 'worker', 'list']
         with open(os.path.realpath(config), "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
             self.client = docker.from_env()
@@ -174,14 +174,11 @@ class AirflowRun(object):
             if container.name == command:
                 container.kill()
 
-    def _get_run_dict(self, name: str, command: list, ports=[], detach=True):
-        """Get dictionary input for containers.run method.
+    def _get_environment_variables(self):
+        """Get airflow environment variables.
 
-        Args:
-            name (str): name of container.
-            command (list): list of string of commands.
-            ports (list[optional]): list of int of port value.
-            detach (bool[optional]): True for detaching container.
+        Returns:
+            list: list of environment variables to be passed to docker run.
         """
         airflow_cfg = self.config['airflow_cfg']
         environment = [
@@ -216,6 +213,18 @@ class AirflowRun(object):
                     self.config['rabbitmq']['port'],
                     self.config['rabbitmq']['virtual_host']
                 ))
+        return environment
+
+    def _get_run_dict(self, name: str, command: list, ports=[], detach=True):
+        """Get dictionary input for containers.run method.
+
+        Args:
+            name (str): name of container.
+            command (list): list of string of commands.
+            ports (list[optional]): list of int of port value.
+            detach (bool[optional]): True for detaching container.
+        """
+
         output = dict(
             image='{registry_url}/{repository}:{tag}'.format(
                 registry_url=self.config['registry_url'],
@@ -224,7 +233,7 @@ class AirflowRun(object):
             name=name,
             auto_remove=True,
             detach=detach,
-            environment=environment,
+            environment=self._get_environment_variables(),
             volumes={
                 '{}/dags'.format(self.config['local_dir']): {
                     'bind': airflow_cfg['AIRFLOW__CORE__DAGS_FOLDER'],
@@ -417,7 +426,7 @@ def cli():
         '--run', dest='run',
         help=(
             'command name: (webserver, rabbitmq, scheduler, worker, flower, '
-            'initdb, postgresql)'))
+            'initdb, postgresql, list)'))
     parser.add_argument(
         '--queue', dest='queue',
         help='Queue name for the worker.')
