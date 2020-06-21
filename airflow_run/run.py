@@ -477,7 +477,8 @@ def cli():
     elif args.list:
         a = AirflowRun(args.config)
         for i in a.list():
-            print('id: {} name: {}'.format(i['id'], i['name']))
+            if i in self.supported_services:
+                print('id: {} name: {}'.format(i['id'], i['name']))
     elif args.kill:
         a = AirflowRun(args.config)
         running_services = a.list()
