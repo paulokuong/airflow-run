@@ -394,9 +394,17 @@ class AirflowRun(object):
             detach (bool[optional]): True for detach container.
             echo (bool[optional]): True for printing out status.
         """
-        assert self.check_required_connections(
-            [self.check_db_connection], echo), (
-            'Required connections not satisfied.')
+        timeout = 30
+        successful = False
+        while not successful and timeout > 0:
+            try:
+                assert self.check_required_connections(
+                    [self.check_db_connection], echo), (
+                    'Required connections not satisfied.')
+                successful = True
+            except Exception:
+                time.sleep(1)
+                timeout -= 1
         return self.client.containers.run(
             **self._get_run_dict('initdb', ["initdb"], detach=True))
 
@@ -512,16 +520,8 @@ def cli():
             a.start_postgresql()
             choice = input('Run initdb? (y/n): ') or 'n'
             if choice.lower() == 'y':
-                successful = False
                 print('Running initdb...')
-                timeout = 30
-                while not successful and timeout > 0:
-                    try:
-                        self.start_initdb(echo=True)
-                        successful = True
-                    except Exception:
-                        time.sleep(1)
-                        timeout -= 1
+                self.start_initdb(echo=True)
         elif args.run in a.supported_services:
             getattr(a, 'start_{}'.format(args.run))()
             a.start_initdb(echo=True)
