@@ -31,6 +31,7 @@ Running the tool in the same directory as config file:
 .. code:: python
 
     afr --run postgresql
+    afr --run initdb
     afr --run rabbitmq
     afr --run webserver
     afr --run scheduler
@@ -51,8 +52,8 @@ Default Config yaml file:
 
     private_registry: False
     registry_url: registry.hub.docker.com
-    username: "" # username for logging in  private registry
-    password: "" # password for logging in private registry
+    username: ""
+    password: ""
     repository: pkuong/airflow-run
     image: airflow-run
     tag: latest
@@ -62,8 +63,8 @@ Default Config yaml file:
     airflow_cfg:
       AIRFLOW__CORE__EXECUTOR: CeleryExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-      AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags # /dags directory in container
-      AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs # /logs directory in container
+      AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
+      AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs
       AIRFLOW_HOME: /usr/local/airflow
     rabbitmq:
       name: rabbitmq
@@ -75,6 +76,9 @@ Default Config yaml file:
       home: /var/lib/rabbitmq
       ui_port: 15672
       port: 5672
+      env:
+        RABBITMQ_DEFAULT_USER: {username}
+        RABBITMQ_DEFAULT_PASS: {password}
     postgresql:
       name: postgresql
       username: {username}
@@ -85,6 +89,7 @@ Default Config yaml file:
       port: 5432
       env:
         PGDATA: /var/lib/postgresql/data/pgdata
+        POSTGRES_USER: {username}
         POSTGRES_PASSWORD: {password}
 
 

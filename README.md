@@ -39,6 +39,7 @@ Running the tool in the same directory as the config.yaml file:
 ---------------------------------------------------------------
 ```
 afr --run postgresql
+afr --run initdb
 afr --run rabbitmq
 afr --run webserver
 afr --run scheduler
