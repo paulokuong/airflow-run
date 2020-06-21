@@ -19,23 +19,30 @@ Steps
 2. Run commands to start Rabbitmq, Postgresql and other Airflow services:
 
 Generate config file:
-------------------------
+---------------------
 
 .. code:: python
 
-    afr --generate_config_file
+    afr --generate_config
 
-Running the tool:
---------------------
+Running the tool in the same directory as config file:
+------------------------------------------------------
 
 .. code:: python
 
-    afr --config_path={path to config.yaml} --run postgresql
-    afr --config_path={path to config.yaml} --run rabbitmq
-    afr --config_path={path to config.yaml} --run webserver
-    afr --config_path={path to config.yaml} --run scheduler
-    afr --config_path={path to config.yaml} --run worker --queue {queue name}
-    afr --config_path={path to config.yaml} --run flower
+    afr --run postgresql
+    afr --run rabbitmq
+    afr --run webserver
+    afr --run scheduler
+    afr --run worker --queue {queue name}
+    afr --run flower
+
+Or, running the tool specifying config path:
+--------------------------------------------
+
+.. code:: python
+
+    afr --run postgresql --config /path/config.yaml
 
 Default Config yaml file:
 -------------------------

@@ -32,7 +32,7 @@ Generate config file:
 ---------------------
 Run the following and follow the prompt to generate config file.
 ```
-afr --generate_config_file
+afr --generate_config
 ```
 
 Running the tool in the same directory as the config.yaml file:
