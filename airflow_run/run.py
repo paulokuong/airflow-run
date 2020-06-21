@@ -5,6 +5,7 @@ import argparse
 from sqlalchemy import create_engine
 import pika
 import time
+from collections import OrderedDict
 
 
 class AirflowRun(object):
@@ -470,7 +471,7 @@ def cli():
             content['postgresql']['password'] = postgresql_password
             content['postgresql']['env']['POSTGRES_PASSWORD'] = postgresql_password
         with open('config.yaml', 'w') as fw:
-            yaml.dump(content, fw)
+            yaml.dump(content, fw, default_flow_style=False, sort_keys=False)
         print('Created file: {}'.format(os.path.realpath('config.yaml')))
 
     elif args.list:
@@ -505,6 +506,7 @@ def cli():
             a.start_worker(
                 queue=args.queue,
                 worker_log_server_port=args.worker_log_server_port)
+            a.start_initdb(echo=True)
         elif args.run == "postgresql":
             a.start_postgresql()
             choice = input('Run initdb? (y/n): ') or 'n'
@@ -514,13 +516,14 @@ def cli():
                 timeout = 30
                 while not successful and timeout > 0:
                     try:
-                        self.start_initdb(echo=False)
+                        self.start_initdb(echo=True)
                         successful = True
                     except Exception:
                         time.sleep(1)
                         timeout -= 1
         elif args.run in a.supported_services:
             getattr(a, 'start_{}'.format(args.run))()
+            a.start_initdb(echo=True)
         else:
             print('\nAvailable services:')
             print('-------------------')
