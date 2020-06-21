@@ -130,7 +130,8 @@ class AirflowRun(object):
                 'Private registry flag is False. Please make sure your are '
                 'building and pushing to private registry.')
         self._logger.debug(self.client.images.build(
-            path=dockerfile, buildargs=self.config['airflow_cfg'],
+            path=os.path.realpath(dockerfile),
+            buildargs=self.config['airflow_cfg'],
             tag=self.config['tag']))
         image = self.client.images.get(self.config['image'])
         image.tag(

@@ -1,7 +1,7 @@
 private_registry: False
 registry_url: registry.hub.docker.com
-username: "" # username for logging in  private registry
-password: "" # password for logging in private registry
+username: ""
+password: ""
 repository: pkuong/airflow-run
 image: airflow-run
 tag: latest
@@ -11,8 +11,8 @@ flower_port: 5555
 airflow_cfg:
   AIRFLOW__CORE__EXECUTOR: CeleryExecutor
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
-  AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags # /dags directory in container
-  AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs # /logs directory in container
+  AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
+  AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs
   AIRFLOW_HOME: /usr/local/airflow
 rabbitmq:
   name: rabbitmq
