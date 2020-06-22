@@ -411,7 +411,8 @@ class AirflowRun(object):
         return self.client.containers.run(
             **self._get_run_dict('initdb', ["initdb"], detach=detach))
 
-    def generate_config(self):
+    @staticmethod
+    def generate_config():
         """Generate config yaml file
         """
         path = os.path.join(os.path.dirname(__file__), 'config-template.yaml')
@@ -438,8 +439,7 @@ class AirflowRun(object):
             content['postgresql']['env']['POSTGRES_PASSWORD'] = postgresql_password
         with open('config.yaml', 'w') as fw:
             yaml.dump(content, fw, default_flow_style=False, sort_keys=False)
-        self._logger.debug('Created file: {}'.format(
-            os.path.realpath('config.yaml')))
+        print('Created file: {}'.format(os.path.realpath('config.yaml')))
 
 
 def cli():
@@ -485,20 +485,21 @@ def cli():
             and not args.pull and not args.generate_config:
         parser.print_help()
 
-    airflow_run = AirflowRun(args.config)
-
     if args.build:
+        airflow_run = AirflowRun(args.config)
         if not os.path.exists(args.config):
             raise Exception('--config path to config file is invalid.')
         if not args.dockerfile or not os.path.exists(args.dockerfile):
             raise Exception('--dockerfile path to Dockerfile is invalid.')
         airflow_run.build(os.path.dirname(args.dockerfile))
     elif args.generate_config:
-        airflow_run.generate_config()
+        AirflowRun.generate_config()
     elif args.list:
+        airflow_run = AirflowRun(args.config)
         for i in airflow_run.list():
             print('id: {} name: {}'.format(i['id'], i['name']))
     elif args.kill:
+        airflow_run = AirflowRun(args.config)
         running_services = airflow_run.list()
         if len(running_services) > 0:
             print('\nContainers:')
@@ -518,6 +519,7 @@ def cli():
         else:
             print('No running service found.')
     elif args.run:
+        airflow_run = AirflowRun(args.config)
         airflow_run.client.containers.prune()
         airflow_run.pull()
         if args.run == "worker":
