@@ -26,7 +26,8 @@ Requirements:
 Setup steps
 -----------
 1. Generate config yaml file.
-2. Run the following commands to start Rabbitmq, Postgresql and other Airflow services:
+2. Run commands to start webserver, scheduler, worker, (rabbitmq, postgres).
+3. Add dag files and run initdb.
 
 Generate config file:
 ---------------------
@@ -58,6 +59,14 @@ Or, use this environment variable to set the config path:
 ```
 export AIRFLOWRUN_CONFIG_PATH="/some_path/config.yaml"
 ```
+
+After running webserver, scheduler and worker (postgres and rabbitmq if needed local instances), Add your dag files in the dags subdirectory in the directory you defined in the config file. Then, run the following:
+```
+afr --run initdb
+```
+(* note: make sure you have the correct user permission in the dags, logs subdirectories.)
+
+That is it!!
 
 Config yaml template:
 -------------------------
