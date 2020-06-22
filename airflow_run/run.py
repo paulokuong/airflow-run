@@ -2,6 +2,7 @@ import argparse
 import docker
 import pika
 import os
+import socket
 from sqlalchemy import create_engine
 import time
 import yaml
@@ -17,6 +18,9 @@ class AirflowRun(object):
         Args:
             config (str): path to config.yaml file.
         """
+
+        self._hostname = socket.gethostname()
+        self._ip = socket.gethostbyname(self._hostname)
         self._logger = logger_factory()
         self.supported_services = [
             'flower', 'initdb', 'postgresql', 'postgres', 'rabbitmq',
@@ -296,7 +300,7 @@ class AirflowRun(object):
                 self.config['rabbitmq']['name']
             ))
             return
-        return self.client.containers.run(
+        self.client.containers.run(
             image=self.config['rabbitmq']['image'],
             name=self.config['rabbitmq']['name'],
             detach=True, auto_remove=True,
@@ -315,8 +319,10 @@ class AirflowRun(object):
                     'bind': self.config['rabbitmq']['home'],
                     'mode': 'rw'
                 }
-            }
-        )
+            })
+        self._logger.info(
+            'Rabbitmq UI url: {ip}:{port}'.format(
+                ip=self._ip, port=self.config['rabbitmq']['ui_port']))
 
     def start_webserver(self, name='airflow_webserver', detach=True):
         """Docker run airflow webserver.
@@ -330,14 +336,17 @@ class AirflowRun(object):
             name += '_{}'.format(len(running_workers))
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        return self.client.containers.run(
+        self.client.containers.run(
             **self._get_run_dict(name, [
                 "webserver", "-p",
                 str(self.config['webserver_port'])
             ], [self.config['webserver_port']], detach=detach))
+        self._logger.info(
+            'Webserver url: {ip}:{port}'.format(
+                ip=self._ip, port=self.config['webserver_port']))
 
     def start_airflow_webserver(self, **kwargs):
-        return self.start_webserver(**kwargs)
+        self.start_webserver(**kwargs)
 
     def start_scheduler(self, name='airflow_scheduler', detach=True):
         """Docker run airflow scheduler.
@@ -395,10 +404,13 @@ class AirflowRun(object):
             name += '_{}'.format(len(running_workers))
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        return self.client.containers.run(
+        self.client.containers.run(
             **self._get_run_dict(name, [
                 "flower", "-p", str(self.config['flower_port'])
             ], [self.config['flower_port']], detach=True))
+        self._logger.info(
+            'Flower url: {ip}:{port}'.format(
+                ip=self._ip, port=self.config['flower_port']))
 
     def start_initdb(self, detach=False):
         """Docker run airflow initdb
