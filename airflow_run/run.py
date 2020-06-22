@@ -477,6 +477,8 @@ def cli():
         help='worker_log_server_port for worker')
     parser.set_defaults(queue='default')
     parser.set_defaults(config='./config.yaml')
+    if os.getenv('AIRFLOWRUN_CONFIG_PATH'):
+        parser.set_defaults(config=os.getenv('AIRFLOWRUN_CONFIG_PATH'))
     parser.set_defaults(dockerfile='./Dockerfile')
     parser.set_defaults(worker_log_server_port=8793)
     args = parser.parse_args()

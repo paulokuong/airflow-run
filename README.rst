@@ -45,6 +45,14 @@ Or, running the tool specifying config path:
 
     afr --run postgresql --config /path/config.yaml
 
+Or, use this environment variable to set the config path:
+---------------------------------------------------------
+
+.. code:: python
+
+    export AIRFLOWRUN_CONFIG_PATH="/some_path/config.yaml"
+
+
 Default Config yaml file:
 -------------------------
 
