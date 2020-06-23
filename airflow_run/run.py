@@ -537,16 +537,16 @@ def cli():
         airflow_run.client.containers.prune()
         airflow_run.pull()
         if args.run == "worker":
+            airflow_run.start_initdb()
             airflow_run.start_worker(
                 queue=args.queue,
                 worker_log_server_port=args.worker_log_server_port)
-            airflow_run.start_initdb()
         elif args.run == "postgresql":
             airflow_run.start_postgresql()
             airflow_run.start_initdb()
         elif args.run in airflow_run.supported_services:
-            getattr(airflow_run, 'start_{}'.format(args.run))()
             airflow_run.start_initdb()
+            getattr(airflow_run, 'start_{}'.format(args.run))()
         else:
             print('\nAvailable services:')
             print('-------------------')
