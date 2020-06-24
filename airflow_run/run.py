@@ -245,7 +245,7 @@ class AirflowRun(object):
                     'mode': 'rw'
                 },
                 '{}/logs'.format(self.config['local_dir']): {
-                    'bind': airflow_cfg['AIRFLOW__CORE__LOGS_FOLDER'],
+                    'bind': airflow_cfg['AIRFLOW__CORE__BASE_LOG_FOLDER'],
                     'mode': 'rw'
                 }
             },

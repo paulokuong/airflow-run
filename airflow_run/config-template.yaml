@@ -12,7 +12,7 @@ airflow_cfg:
   AIRFLOW__CORE__EXECUTOR: CeleryExecutor
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
   AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
-  AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs
+  AIRFLOW__CORE__BASE_LOG_FOLDER: /usr/local/airflow/airflow/logs
   AIRFLOW_HOME: /usr/local/airflow
 rabbitmq:
   name: rabbitmq
