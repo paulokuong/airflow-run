@@ -5,7 +5,7 @@ with open('README.rst') as file:
     long_description = file.read()
 
 setup(name='airflow-run',
-      version='0.1.5',
+      version='0.1.6',
       description=(
           'Simplified Airflow CLI Tool for Lauching CeleryExecutor Deployment'),
       install_requires=[

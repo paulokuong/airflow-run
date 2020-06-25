@@ -41,7 +41,7 @@ class AirflowRun(object):
         """Validate config yaml file
         """
         required_keys = [
-            'airflow_cfg', 'private_registry', 'registry_url',
+            'env', 'private_registry', 'registry_url',
             'repository', 'image', 'tag', 'username', 'password', 'local_dir',
             'webserver_port', 'flower_port', 'rabbitmq', 'postgresql']
         for key in required_keys:
@@ -65,9 +65,9 @@ class AirflowRun(object):
         """Check if postgresql can be connected.
         Bubble up exception when fails.
         """
-        airflow_cfg = self.config['airflow_cfg']
-        db_string = airflow_cfg.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
-        result_backend = airflow_cfg.get(
+        env = self.config['env']
+        db_string = env.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
+        result_backend = env.get(
             'AIRFLOW__CELERY__RESULT_BACKEND')
         if not db_string or not result_backend:
             db_string = (
@@ -135,7 +135,7 @@ class AirflowRun(object):
                 'building and pushing to private registry.')
         self._logger.debug(self.client.images.build(
             path=os.path.realpath(dockerfile),
-            buildargs=self.config['airflow_cfg'],
+            buildargs=self.config['env'],
             tag=self.config['tag']))
         image = self.client.images.get(self.config['image'])
         image.tag(
@@ -184,12 +184,12 @@ class AirflowRun(object):
         Returns:
             list: list of environment variables to be passed to docker run.
         """
-        airflow_cfg = self.config['airflow_cfg']
+        env = self.config['env']
         environment = [
-            "{}={}".format(k, v) for k, v in airflow_cfg.items()
+            "{}={}".format(k, v) for k, v in env.items()
         ]
-        result_backend = airflow_cfg.get('AIRFLOW__CELERY__RESULT_BACKEND')
-        conn_str = airflow_cfg.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
+        result_backend = env.get('AIRFLOW__CELERY__RESULT_BACKEND')
+        conn_str = env.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
         if not conn_str or not result_backend:
             environment.append(
                 ("AIRFLOW__CORE__SQL_ALCHEMY_CONN="
@@ -207,7 +207,7 @@ class AirflowRun(object):
                     self.config['postgresql']['host'],
                     self.config['postgresql']['port']
                 ))
-        if 'AIRFLOW__CELERY__BROKER_URL' not in airflow_cfg.items():
+        if 'AIRFLOW__CELERY__BROKER_URL' not in env.items():
             environment.append(
                 ("AIRFLOW__CELERY__BROKER_URL="
                  "pyamqp://{}:{}@{}:{}/{}").format(
@@ -229,7 +229,7 @@ class AirflowRun(object):
             detach (bool[optional]): True for detaching container.
         """
 
-        airflow_cfg = self.config['airflow_cfg']
+        env = self.config['env']
         output = dict(
             image='{registry_url}/{repository}:{tag}'.format(
                 registry_url=self.config['registry_url'],
@@ -241,11 +241,11 @@ class AirflowRun(object):
             environment=self._get_environment_variables(),
             volumes={
                 '{}/dags'.format(self.config['local_dir']): {
-                    'bind': airflow_cfg['AIRFLOW__CORE__DAGS_FOLDER'],
+                    'bind': env['AIRFLOW__CORE__DAGS_FOLDER'],
                     'mode': 'rw'
                 },
                 '{}/logs'.format(self.config['local_dir']): {
-                    'bind': airflow_cfg['AIRFLOW__CORE__BASE_LOG_FOLDER'],
+                    'bind': env['AIRFLOW__CORE__BASE_LOG_FOLDER'],
                     'mode': 'rw'
                 }
             },
