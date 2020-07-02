@@ -9,6 +9,7 @@ import yaml
 
 from airflow_run.decorators import retry
 from airflow_run.utils import logger_factory
+from cryptography.fernet import Fernet
 
 
 class AirflowRun(object):
@@ -438,6 +439,7 @@ class AirflowRun(object):
             postgresql_host = input("Please enter postgresql host/ip: ")
             postgresql_username = input("Please enter postgresql username: ")
             postgresql_password = input("Please enter postgresql password: ")
+            content['env']['AIRFLOW__CORE__FERNET_KEY'] = Fernet.generate_key().decode()
             content['local_dir'] = local_dir
             content['rabbitmq']['host'] = rabbitmq_host
             content['rabbitmq']['username'] = rabbitmq_username

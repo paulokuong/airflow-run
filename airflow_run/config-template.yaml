@@ -14,6 +14,7 @@ env:
   AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
   AIRFLOW__CORE__BASE_LOG_FOLDER: /usr/local/airflow/airflow/logs
   AIRFLOW_HOME: /usr/local/airflow
+  AIRFLOW__CORE__FERNET_KEY: ""
 rabbitmq:
   name: rabbitmq
   username: {username}
