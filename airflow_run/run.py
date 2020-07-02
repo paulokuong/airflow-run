@@ -13,15 +13,17 @@ from cryptography.fernet import Fernet
 
 
 class AirflowRun(object):
-    def __init__(self, config: str):
+    def __init__(self, config: str, log: bool = False):
         """Constructor
 
         Args:
             config (str): path to config.yaml file.
+            log (boolean): True for showing logs.
         """
 
         self._hostname = socket.gethostname()
         self._ip = socket.gethostbyname(self._hostname)
+        self._show_log = log
         self._logger = logger_factory()
         self.supported_services = [
             'flower', 'initdb', 'postgresql', 'postgres', 'rabbitmq',
@@ -61,7 +63,7 @@ class AirflowRun(object):
             assert key in self.config['postgresql'], (
                 'key "{}" is not found in yaml.'.format(key))
 
-    @retry(5)
+    @retry(3)
     def check_db_connection(self) -> bool:
         """Check if postgresql can be connected.
         Bubble up exception when fails.
@@ -82,7 +84,7 @@ class AirflowRun(object):
         self._logger.debug('Database connection is: OK')
         return True
 
-    @retry(5)
+    @retry(3)
     def check_rabbitmq_connection(self) -> bool:
         """Check Rabbitmq connection."""
 
@@ -419,6 +421,8 @@ class AirflowRun(object):
             detach (bool[optional]): True for detach container.
             echo (bool[optional]): True for printing out status.
         """
+        if self._show_log:
+            self._logger.info('Runnint airflow initdb...')
         self.check_required_connections([self.check_db_connection])
         self.client.containers.prune()
         return self.client.containers.run(
@@ -479,6 +483,8 @@ def cli():
     parser.add_argument(
         '--dockerfile', dest='dockerfile', help='Path to the Dockerfile.')
     parser.add_argument(
+        '--log', dest='log', action='store_true', help='show logs')
+    parser.add_argument(
         '--run', dest='run',
         help=(
             'command name: (webserver, rabbitmq, scheduler, worker, flower, '
@@ -495,14 +501,15 @@ def cli():
         parser.set_defaults(config=os.getenv('AIRFLOWRUN_CONFIG_PATH'))
     parser.set_defaults(dockerfile='./Dockerfile')
     parser.set_defaults(worker_log_server_port=8793)
+    parser.set_defaults(log=False)
     args = parser.parse_args()
 
     if not args.build and not args.run and not args.list and not args.kill \
-            and not args.pull and not args.generate_config:
+            and not args.pull and not args.generate_config and not args.log:
         parser.print_help()
 
     if args.build:
-        airflow_run = AirflowRun(args.config)
+        airflow_run = AirflowRun(args.config, log=args.log)
         if not os.path.exists(args.config):
             raise Exception('--config path to config file is invalid.')
         if not args.dockerfile or not os.path.exists(args.dockerfile):
@@ -511,11 +518,11 @@ def cli():
     elif args.generate_config:
         AirflowRun.generate_config()
     elif args.list:
-        airflow_run = AirflowRun(args.config)
+        airflow_run = AirflowRun(args.config, log=args.log)
         for i in airflow_run.list():
             print('id: {} name: {}'.format(i['id'], i['name']))
     elif args.kill:
-        airflow_run = AirflowRun(args.config)
+        airflow_run = AirflowRun(args.config, log=args.log)
         running_services = airflow_run.list()
         if len(running_services) > 0:
             print('\nContainers:')
@@ -535,7 +542,7 @@ def cli():
         else:
             print('No running service found.')
     elif args.run:
-        airflow_run = AirflowRun(args.config)
+        airflow_run = AirflowRun(args.config, log=args.log)
         airflow_run.client.containers.prune()
         airflow_run.pull()
         if args.run == "worker":
@@ -546,6 +553,8 @@ def cli():
         elif args.run == "postgresql":
             airflow_run.start_postgresql()
             airflow_run.start_initdb()
+        elif args.run == "rabbitmq":
+            airflow_run.start_rabbitmq()
         elif args.run in airflow_run.supported_services:
             airflow_run.start_initdb()
             getattr(airflow_run, 'start_{}'.format(args.run))()
