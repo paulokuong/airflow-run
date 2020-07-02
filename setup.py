@@ -5,7 +5,7 @@ with open('README.rst') as file:
     long_description = file.read()
 
 setup(name='airflow-run',
-      version='0.1.7',
+      version='0.1.8',
       description=(
           'Simplified Airflow CLI Tool for Lauching CeleryExecutor Deployment'),
       install_requires=[
@@ -13,7 +13,8 @@ setup(name='airflow-run',
           'pyyaml==5.3.1',
           'sqlalchemy==1.3.16',
           'pika==1.1.0',
-          'psycopg2-binary==2.8.5'
+          'psycopg2-binary==2.8.5',
+          'cryptography==2.9.2'
       ],
       classifiers=[
           'Development Status :: 3 - Alpha',
