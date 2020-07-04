@@ -28,7 +28,7 @@ class AirflowRun(object):
         self.supported_services = [
             'flower', 'initdb', 'postgresql', 'postgres', 'rabbitmq',
             'scheduler', 'webserver', 'worker', 'list', 'airflow_scheduler',
-            'airflow_webserver', 'airflow_worker']
+            'airflow_webserver', 'airflow_worker', 'all']
         with open(os.path.realpath(config), "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
             self.client = docker.from_env()
@@ -63,11 +63,13 @@ class AirflowRun(object):
             assert key in self.config['postgresql'], (
                 'key "{}" is not found in yaml.'.format(key))
 
-    @retry(3)
+    @retry(7, 'Checking Postgresql connection...')
     def check_db_connection(self) -> bool:
         """Check if postgresql can be connected.
         Bubble up exception when fails.
         """
+        if self._show_log:
+            self._logger.info('Checking DB connection...')
         env = self.config['env']
         db_string = env.get('AIRFLOW__CORE__SQL_ALCHEMY_CONN')
         result_backend = env.get(
@@ -79,12 +81,12 @@ class AirflowRun(object):
                 self.config['postgresql']['password'],
                 self.config['postgresql']['host'],
                 self.config['postgresql']['port'])
-        engine = create_engine(db_string)
+        engine = create_engine(db_string, connect_args={'connect_timeout': 20})
         engine.table_names()
         self._logger.debug('Database connection is: OK')
         return True
 
-    @retry(3)
+    @retry(7, 'Checking Rabbitmq connection...')
     def check_rabbitmq_connection(self) -> bool:
         """Check Rabbitmq connection."""
 
@@ -272,6 +274,7 @@ class AirflowRun(object):
                 self.config['postgresql']['name']
             ))
             return
+        self._logger.info('Starting postgres...')
         self.client.containers.run(
             image=self.config['postgresql']['image'],
             name=self.config['postgresql']['name'],
@@ -303,6 +306,7 @@ class AirflowRun(object):
                 self.config['rabbitmq']['name']
             ))
             return
+        self._logger.info('Starting rabbitmq...')
         self.client.containers.run(
             image=self.config['rabbitmq']['image'],
             name=self.config['rabbitmq']['name'],
@@ -333,6 +337,7 @@ class AirflowRun(object):
             name (str): name of the container.
             detach (bool[optional]): True for detach container.
         """
+        self._logger.info('Starting webserver...')
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
@@ -379,6 +384,7 @@ class AirflowRun(object):
             worker_log_server_port (int|str[optional]): worker log server port.
                 if str, format is: "inbound port:outbound port"
         """
+        self._logger.info('Starting worker with queue: {}...'.format(queue))
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
@@ -401,6 +407,7 @@ class AirflowRun(object):
             name (str): name of the container.
             detach (bool[optional]): True for detach container.
         """
+        self._logger.info('Starting flower...')
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
@@ -421,8 +428,8 @@ class AirflowRun(object):
             detach (bool[optional]): True for detach container.
             echo (bool[optional]): True for printing out status.
         """
-        if self._show_log:
-            self._logger.info('Runnint airflow initdb...')
+
+        self._logger.info('Running airflow initdb...')
         self.check_required_connections([self.check_db_connection])
         self.client.containers.prune()
         return self.client.containers.run(
@@ -550,14 +557,30 @@ def cli():
             airflow_run.start_worker(
                 queue=args.queue,
                 worker_log_server_port=args.worker_log_server_port)
-        elif args.run == "postgresql":
+        elif args.run in ["postgresql", "postgres"]:
             airflow_run.start_postgresql()
             airflow_run.start_initdb()
         elif args.run == "rabbitmq":
             airflow_run.start_rabbitmq()
-        elif args.run in airflow_run.supported_services:
             airflow_run.start_initdb()
-            getattr(airflow_run, 'start_{}'.format(args.run))()
+        elif args.run == "webserver":
+            airflow_run.start_webserver()
+            airflow_run.start_initdb()
+        elif args.run == "scheduler":
+            airflow_run.start_scheduler()
+            airflow_run.start_initdb()
+        elif args.run == "flower":
+            airflow_run.start_flower()
+        elif args.run == "all":
+            airflow_run.start_postgresql()
+            airflow_run.start_initdb()
+            airflow_run.start_rabbitmq()
+            airflow_run.start_initdb()
+            airflow_run.start_scheduler()
+            airflow_run.start_worker(
+                queue=args.queue,
+                worker_log_server_port=args.worker_log_server_port)
+            airflow_run.start_webserver()
         else:
             print('\nAvailable services:')
             print('-------------------')

@@ -2,7 +2,7 @@ from functools import wraps
 import time
 
 
-def retry(max_retries, message=''):
+def retry(max_retries, retry_message=''):
     def retry_fn_sub_decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kargs):
@@ -13,13 +13,15 @@ def retry(max_retries, message=''):
             fib_num_b = 1
 
             while success is False and retry <= max_retries:
-                if message:
-                    print(message)
                 try:
                     response = fn(*args, **kargs)
                     success = True
                 except Exception as err:
                     err_msg = str(err)
+                    if retry_message:
+                        print(retry_message)
+                    else:
+                        print(err_msg)
                     success = False
                 new_interval = fib_num_b + fib_num_a
                 fib_num_a = fib_num_b

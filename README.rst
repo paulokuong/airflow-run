@@ -53,11 +53,7 @@ Or, use this environment variable to set the config path:
 
     export AIRFLOWRUN_CONFIG_PATH="/some_path/config.yaml"
 
-After running webserver, scheduler and worker (postgres and rabbitmq if needed local instances), Add your dag files in the dags subdirectory in the directory you defined in the config file. Then, run the following:
-
-.. code:: python
-
-    afr --run initdb
+After running webserver, scheduler and worker (postgres and rabbitmq if needed local instances), Add your dag files in the dags subdirectory in the directory you defined in the config file. 
 
 (* note: make sure you have the correct user permission in the dags, logs subdirectories.)
 
