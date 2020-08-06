@@ -60,7 +60,7 @@ Or, use this environment variable to set the config path:
 export AIRFLOWRUN_CONFIG_PATH="/some_path/config.yaml"
 ```
 
-After running webserver, scheduler and worker (postgres and rabbitmq if needed local instances), Add your dag files in the dags subdirectory in the directory you defined in the config file. 
+After running webserver, scheduler and worker (postgres and rabbitmq if needed local instances), Add your dag files in the dags subdirectory in the directory you defined in the config file.
 (* note: make sure you have the correct user permission in the dags, logs subdirectories.)
 
 That is it!!
@@ -78,12 +78,14 @@ tag: latest
 local_dir: {local directory where you want to mount /dags and /logs folder}
 webserver_port: 8000
 flower_port: 5555
+custom_mount_volumes: []
 env:
   AIRFLOW__CORE__EXECUTOR: CeleryExecutor
   AIRFLOW__CORE__LOAD_EXAMPLES: "False"
   AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/airflow/dags
   AIRFLOW__CORE__LOGS_FOLDER: /usr/local/airflow/airflow/logs
   AIRFLOW_HOME: /usr/local/airflow
+  AIRFLOW__CORE__FERNET_KEY: ""
 rabbitmq:
   name: rabbitmq
   username: {username}
@@ -110,6 +112,15 @@ postgresql:
     POSTGRES_USER: {username}
     POSTGRES_PASSWORD: {password}
 
+```
+
+Custom mount volumes
+--------------------
+You can specify custom mount volumes in the container, for example:
+```
+custom_mount_volumes:
+  - host_path: /Users/bob/.aws
+    container_path: /usr/local/airflow/.aws
 ```
 
 Docker image

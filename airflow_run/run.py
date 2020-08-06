@@ -235,6 +235,25 @@ class AirflowRun(object):
         """
 
         env = self.config['env']
+        volumes = {
+            '{}/dags'.format(self.config['local_dir']): {
+                'bind': env['AIRFLOW__CORE__DAGS_FOLDER'],
+                'mode': 'rw'
+            },
+            '{}/logs'.format(self.config['local_dir']): {
+                'bind': env['AIRFLOW__CORE__BASE_LOG_FOLDER'],
+                'mode': 'rw'
+            }
+        }
+        if 'custom_mount_volumes' in self.config and len(
+                self.config['custom_mount_volumes']) > 0:
+            for custom_mount_volume in self.config['custom_mount_volumes']:
+                assert 'host_path' in custom_mount_volume
+                assert 'container_path' in custom_mount_volume
+                volumes[custom_mount_volume['host_path']] = {
+                    'bind': custom_mount_volume['container_path'],
+                    'mode': 'rw'
+                }
         output = dict(
             image='{registry_url}/{repository}:{tag}'.format(
                 registry_url=self.config['registry_url'],
@@ -244,16 +263,7 @@ class AirflowRun(object):
             auto_remove=True,
             detach=detach,
             environment=self._get_environment_variables(),
-            volumes={
-                '{}/dags'.format(self.config['local_dir']): {
-                    'bind': env['AIRFLOW__CORE__DAGS_FOLDER'],
-                    'mode': 'rw'
-                },
-                '{}/logs'.format(self.config['local_dir']): {
-                    'bind': env['AIRFLOW__CORE__BASE_LOG_FOLDER'],
-                    'mode': 'rw'
-                }
-            },
+            volumes=volumes,
             command=command)
         if ports:
             ports_dic = {}
