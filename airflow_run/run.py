@@ -21,8 +21,12 @@ class AirflowRun(object):
             log (boolean): True for showing logs.
         """
 
-        self._hostname = socket.gethostname()
-        self._ip = socket.gethostbyname(self._hostname)
+        try:
+            self._hostname = socket.gethostname()
+            self._ip = socket.gethostbyname(self._hostname)
+        except Exception as err:
+            self._hostname = 'localhost'
+            self._ip = socket.gethostbyname(self._hostname)
         self._show_log = log
         self._logger = logger_factory()
         self.supported_services = [
@@ -250,6 +254,12 @@ class AirflowRun(object):
             for custom_mount_volume in self.config['custom_mount_volumes']:
                 assert 'host_path' in custom_mount_volume
                 assert 'container_path' in custom_mount_volume
+                volumes_to_be_deleted = []
+                for k, v in volumes.items():
+                    if v['bind'] == custom_mount_volume['container_path']:
+                        volumes_to_be_deleted.append(k)
+                for volume_to_be_deleted in volumes_to_be_deleted:
+                    del volumes[volume_to_be_deleted]
                 volumes[custom_mount_volume['host_path']] = {
                     'bind': custom_mount_volume['container_path'],
                     'mode': 'rw'
@@ -279,14 +289,32 @@ class AirflowRun(object):
     def start_postgresql(self):
         """Start postgres instance.
         """
+        self.client.images.pull(
+            self.config['postgresql']['image'],
+            tag=self.config['postgresql']['tag'])
         if self.exists(self.config['postgresql']['name']):
             self._logger.debug('Container {} already exists.'.format(
                 self.config['postgresql']['name']
             ))
             return
         self._logger.info('Starting postgres...')
+        command = ('docker run -d {port} {env} {volumes} {image}:{tag}').format(
+                port=' '.join(['-p {}:{}'.format(i, i)
+                               for i in self.config['postgresql']['port']]),
+                env=' '.join(
+                    ['--env {}={}'.format(k, v)
+                     for k, v in self.config['postgresql']['env'].items()]),
+                volumes='-v {}/postgresql:{}'.format(
+                    self.config['local_dir'],
+                    self.config['postgresql']['data']),
+                image=self.config['postgresql']['image'],
+                tag=self.config['postgresql']['tag'])
+        self._logger.debug('Running: {}'.format(command))
+
         self.client.containers.run(
-            image=self.config['postgresql']['image'],
+            image='{}:{}'.format(
+                self.config['postgresql']['image'],
+                self.config['postgresql']['tag']),
             name=self.config['postgresql']['name'],
             detach=True, auto_remove=True,
             ports={
@@ -398,7 +426,7 @@ class AirflowRun(object):
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
         if len(running_workers) > 0:
-            name += '_{}'.format(len(running_workers))
+            name += '_{}'.format(len(running_workers) + 1)
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
         outbound_port = worker_log_server_port + len(running_workers)
@@ -473,7 +501,8 @@ class AirflowRun(object):
             content['postgresql']['env']['POSTGRES_USER'] = postgresql_username
             content['postgresql']['env']['POSTGRES_PASSWORD'] = postgresql_password
         with open('config.yaml', 'w') as fw:
-            yaml.dump(content, fw, default_flow_style=False, sort_keys=False)
+            yaml.dump(content, fw, default_flow_style=False,
+                      sort_keys=False)
         print('Created file: {}'.format(os.path.realpath('config.yaml')))
 
 
@@ -521,12 +550,12 @@ def cli():
     parser.set_defaults(log=False)
     args = parser.parse_args()
 
-    if not args.build and not args.run and not args.list and not args.kill \
+    if not args.build and not args.run and not args.list and not args.kill
             and not args.pull and not args.generate_config and not args.log:
         parser.print_help()
 
     if args.build:
-        airflow_run = AirflowRun(args.config, log=args.log)
+        airflow_run=AirflowRun(args.config, log = args.log)
         if not os.path.exists(args.config):
             raise Exception('--config path to config file is invalid.')
         if not args.dockerfile or not os.path.exists(args.dockerfile):
@@ -535,12 +564,12 @@ def cli():
     elif args.generate_config:
         AirflowRun.generate_config()
     elif args.list:
-        airflow_run = AirflowRun(args.config, log=args.log)
+        airflow_run=AirflowRun(args.config, log = args.log)
         for i in airflow_run.list():
             print('id: {} name: {}'.format(i['id'], i['name']))
     elif args.kill:
-        airflow_run = AirflowRun(args.config, log=args.log)
-        running_services = airflow_run.list()
+        airflow_run=AirflowRun(args.config, log = args.log)
+        running_services=airflow_run.list()
         if len(running_services) > 0:
             print('\nContainers:')
             print('-----------')
@@ -548,7 +577,7 @@ def cli():
                 print('{}. {}'.format(index, i['name']))
             print('a. Kill all.')
             print('c. Cancel.')
-            choice = input('Choose one: ')
+            choice=input('Choose one: ')
             if choice == 'a':
                 for i in running_services:
                     airflow_run.kill(i['name'])
@@ -559,14 +588,14 @@ def cli():
         else:
             print('No running service found.')
     elif args.run:
-        airflow_run = AirflowRun(args.config, log=args.log)
+        airflow_run=AirflowRun(args.config, log = args.log)
         airflow_run.client.containers.prune()
         airflow_run.pull()
         if args.run == "worker":
             airflow_run.start_initdb()
             airflow_run.start_worker(
-                queue=args.queue,
-                worker_log_server_port=args.worker_log_server_port)
+                queue = args.queue,
+                worker_log_server_port = args.worker_log_server_port)
         elif args.run in ["postgresql", "postgres"]:
             airflow_run.start_postgresql()
             airflow_run.start_initdb()
@@ -588,8 +617,8 @@ def cli():
             airflow_run.start_initdb()
             airflow_run.start_scheduler()
             airflow_run.start_worker(
-                queue=args.queue,
-                worker_log_server_port=args.worker_log_server_port)
+                queue = args.queue,
+                worker_log_server_port = args.worker_log_server_port)
             airflow_run.start_webserver()
         else:
             print('\nAvailable services:')
