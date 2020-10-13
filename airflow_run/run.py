@@ -126,11 +126,11 @@ class AirflowRun(object):
 
     def pull(self):
         """Pull image"""
-        self.client.images.pull(
-            "{registry_url}/{repository}".format(
+        os.system('docker pull {image}:{tag}'.format(
+            image="{registry_url}/{repository}".format(
                 registry_url=self.config['registry_url'],
                 repository=self.config['repository']),
-            tag=self.config['tag'])
+            tag=self.config['tag']))
 
     def build(self, dockerfile: str):
         """Build and push airflow docker image
@@ -228,6 +228,23 @@ class AirflowRun(object):
                 ))
         return environment
 
+    def get_docker_run_command(self, bash_command: list, ports: list = []):
+        env = self.config['env']
+        command = (
+            'docker run -d {env} {volumes} {ports} {registry_url}/{repository}:{tag} {bash_command}').format(
+            env=' '.join(['--env {}'.format(i)
+                          for i in self._get_environment_variables()]),
+            volumes=' '.join(['-v {}:{}'.format(i['host_path'], i['container_path'])
+                              for i in self.config['custom_mount_volumes']]),
+            ports=' '.join(['-p {}:{}'.format(p[0], p[1]) for p in ports]),
+            image=self.config['image'],
+            registry_url=self.config['registry_url'],
+            repository=self.config['repository'],
+            tag=self.config['tag'],
+            bash_command=' '.join(bash_command))
+        self._logger.debug('Running command: \n\n{}\n\n'.format(command))
+        return command
+
     def _get_run_dict(self, name: str, command: list, ports=[], detach=True):
         """Get dictionary input for containers.run method.
 
@@ -289,9 +306,9 @@ class AirflowRun(object):
     def start_postgresql(self):
         """Start postgres instance.
         """
-        self.client.images.pull(
-            self.config['postgresql']['image'],
-            tag=self.config['postgresql']['tag'])
+        os.system('docker pull {image}:{tag}'.format(
+            image=self.config['postgresql']['image'],
+            tag=self.config['postgresql']['tag']))
         if self.exists(self.config['postgresql']['name']):
             self._logger.debug('Container {} already exists.'.format(
                 self.config['postgresql']['name']
@@ -299,40 +316,18 @@ class AirflowRun(object):
             return
         self._logger.info('Starting postgres...')
         command = ('docker run -d {port} {env} {volumes} {image}:{tag}').format(
-                port=' '.join(['-p {}:{}'.format(i, i)
-                               for i in self.config['postgresql']['port']]),
-                env=' '.join(
-                    ['--env {}={}'.format(k, v)
-                     for k, v in self.config['postgresql']['env'].items()]),
-                volumes='-v {}/postgresql:{}'.format(
+            port='-p {port}:{port}'.format(
+                port=self.config['postgresql']['port']),
+            env=' '.join(
+                ['--env {}={}'.format(k, v)
+                 for k, v in self.config['postgresql']['env'].items()]),
+            volumes='-v {}/postgresql:{}'.format(
                     self.config['local_dir'],
                     self.config['postgresql']['data']),
-                image=self.config['postgresql']['image'],
-                tag=self.config['postgresql']['tag'])
-        self._logger.debug('Running: {}'.format(command))
-
-        self.client.containers.run(
-            image='{}:{}'.format(
-                self.config['postgresql']['image'],
-                self.config['postgresql']['tag']),
-            name=self.config['postgresql']['name'],
-            detach=True, auto_remove=True,
-            ports={
-                '{}/tcp'.format(p): p
-                for p in [
-                    self.config['postgresql']['port']]
-            },
-            environment=[
-                "{}={}".format(k, v)
-                for k, v in self.config['postgresql']['env'].items()
-            ],
-            volumes={
-                '{}/{}'.format(self.config['local_dir'], '/postgresql'): {
-                    'bind': self.config['postgresql']['data'],
-                    'mode': 'rw'
-                }
-            }
-        )
+            image=self.config['postgresql']['image'],
+            tag=self.config['postgresql']['tag'])
+        self._logger.debug('Running command: \n\n{}\n\n'.format(command))
+        os.system(command)
 
     def start_postgres(self):
         return self.start_postgresql()
@@ -345,26 +340,21 @@ class AirflowRun(object):
             ))
             return
         self._logger.info('Starting rabbitmq...')
-        self.client.containers.run(
-            image=self.config['rabbitmq']['image'],
-            name=self.config['rabbitmq']['name'],
-            detach=True, auto_remove=True,
-            ports={
-                '{}/tcp'.format(p): p
-                for p in [
-                    self.config['rabbitmq']['ui_port'],
-                    self.config['rabbitmq']['port']]
-            },
-            environment=[
-                "{}={}".format(k, v)
-                for k, v in self.config['rabbitmq']['env'].items()
-            ],
-            volumes={
-                '{}/rabbitmq'.format(self.config['local_dir']): {
-                    'bind': self.config['rabbitmq']['home'],
-                    'mode': 'rw'
-                }
-            })
+        command = ('docker run -d {env} {volumes} {ports} {image}'.format(
+            env=(
+                ' '.join(['-e {}={}'.format(k, v)
+                          for k, v in self.config['rabbitmq']['env'].items()])),
+            volumes=(
+                '-v {}={}'.format(
+                    self.config['local_dir'],
+                    self.config['rabbitmq']['home'])),
+            ports='-p {ui_port}:{ui_port} -p {port}:{port}'.format(
+                ui_port=self.config['rabbitmq']['ui_port'],
+                port=self.config['rabbitmq']['port']),
+            image=self.config['rabbitmq']['image']
+        ))
+        self._logger.debug('Running command: \n\n{}\n\n'.format(command))
+        os.system(command)
         self._logger.info(
             'Rabbitmq UI url: {ip}:{port}'.format(
                 ip=self._ip, port=self.config['rabbitmq']['ui_port']))
@@ -382,11 +372,11 @@ class AirflowRun(object):
             name += '_{}'.format(len(running_workers))
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        self.client.containers.run(
-            **self._get_run_dict(name, [
-                "webserver", "-p",
-                str(self.config['webserver_port'])
-            ], [self.config['webserver_port']], detach=detach))
+        webserver_port = str(self.config['webserver_port'])
+        command = self.get_docker_run_command(
+            ["webserver", "-p", webserver_port],
+            ports=[(webserver_port, webserver_port)])
+        os.system(command)
         self._logger.info(
             'Webserver url: {ip}:{port}'.format(
                 ip=self._ip, port=self.config['webserver_port']))
@@ -399,6 +389,7 @@ class AirflowRun(object):
         Args:
             name (str): name of the container.
             detach (bool[optional]): True for detach container.
+
         """
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
@@ -406,8 +397,8 @@ class AirflowRun(object):
             name += '_{}'.format(len(running_workers))
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        return self.client.containers.run(
-            **self._get_run_dict(name, ["scheduler"], detach=detach))
+        command = self.get_docker_run_command(["scheduler"])
+        os.system(command)
 
     def start_airflow_scheduler(self, **kwargs):
         return self.start_scheduler(**kwargs)
@@ -430,11 +421,10 @@ class AirflowRun(object):
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
         outbound_port = worker_log_server_port + len(running_workers)
-        return self.client.containers.run(
-            **self._get_run_dict(
-                name, ["worker", "-q", queue],
-                ['{}:{}'.format(worker_log_server_port, outbound_port)],
-                detach=True))
+        command = self.get_docker_run_command(
+            ["worker", "-q", queue],
+            ports=[(worker_log_server_port, outbound_port)])
+        os.system(command)
 
     def start_airflow_worker(self, **kwargs):
         return self.start_worker(**kwargs)
@@ -452,10 +442,11 @@ class AirflowRun(object):
             name += '_{}'.format(len(running_workers))
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        self.client.containers.run(
-            **self._get_run_dict(name, [
-                "flower", "-p", str(self.config['flower_port'])
-            ], [self.config['flower_port']], detach=True))
+        flower_port = str(self.config['flower_port'])
+        command = self.get_docker_run_command(
+            ["flower", "-p", flower_port],
+            ports=[(flower_port, flower_port)])
+        os.system(command)
         self._logger.info(
             'Flower url: {ip}:{port}'.format(
                 ip=self._ip, port=self.config['flower_port']))
@@ -470,8 +461,8 @@ class AirflowRun(object):
         self._logger.info('Running airflow initdb...')
         self.check_required_connections([self.check_db_connection])
         self.client.containers.prune()
-        return self.client.containers.run(
-            **self._get_run_dict('initdb', ["initdb"], detach=detach))
+        command = self.get_docker_run_command(["initdb"])
+        os.system(command)
 
     @staticmethod
     def generate_config():
@@ -550,12 +541,11 @@ def cli():
     parser.set_defaults(log=False)
     args = parser.parse_args()
 
-    if not args.build and not args.run and not args.list and not args.kill
-            and not args.pull and not args.generate_config and not args.log:
+    if not args.build and not args.run and not args.list and not args.kill and not args.pull and not args.generate_config and not args.log:
         parser.print_help()
 
     if args.build:
-        airflow_run=AirflowRun(args.config, log = args.log)
+        airflow_run = AirflowRun(args.config, log=args.log)
         if not os.path.exists(args.config):
             raise Exception('--config path to config file is invalid.')
         if not args.dockerfile or not os.path.exists(args.dockerfile):
@@ -564,12 +554,12 @@ def cli():
     elif args.generate_config:
         AirflowRun.generate_config()
     elif args.list:
-        airflow_run=AirflowRun(args.config, log = args.log)
+        airflow_run = AirflowRun(args.config, log=args.log)
         for i in airflow_run.list():
             print('id: {} name: {}'.format(i['id'], i['name']))
     elif args.kill:
-        airflow_run=AirflowRun(args.config, log = args.log)
-        running_services=airflow_run.list()
+        airflow_run = AirflowRun(args.config, log=args.log)
+        running_services = airflow_run.list()
         if len(running_services) > 0:
             print('\nContainers:')
             print('-----------')
@@ -577,7 +567,7 @@ def cli():
                 print('{}. {}'.format(index, i['name']))
             print('a. Kill all.')
             print('c. Cancel.')
-            choice=input('Choose one: ')
+            choice = input('Choose one: ')
             if choice == 'a':
                 for i in running_services:
                     airflow_run.kill(i['name'])
@@ -588,14 +578,14 @@ def cli():
         else:
             print('No running service found.')
     elif args.run:
-        airflow_run=AirflowRun(args.config, log = args.log)
+        airflow_run = AirflowRun(args.config, log=args.log)
         airflow_run.client.containers.prune()
         airflow_run.pull()
         if args.run == "worker":
             airflow_run.start_initdb()
             airflow_run.start_worker(
-                queue = args.queue,
-                worker_log_server_port = args.worker_log_server_port)
+                queue=args.queue,
+                worker_log_server_port=args.worker_log_server_port)
         elif args.run in ["postgresql", "postgres"]:
             airflow_run.start_postgresql()
             airflow_run.start_initdb()
@@ -617,8 +607,8 @@ def cli():
             airflow_run.start_initdb()
             airflow_run.start_scheduler()
             airflow_run.start_worker(
-                queue = args.queue,
-                worker_log_server_port = args.worker_log_server_port)
+                queue=args.queue,
+                worker_log_server_port=args.worker_log_server_port)
             airflow_run.start_webserver()
         else:
             print('\nAvailable services:')
