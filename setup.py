@@ -14,7 +14,7 @@ setup(name='airflow-run',
           'sqlalchemy>=1.3.13',
           'pika==1.1.0',
           'psycopg2-binary==2.8.5',
-          'cryptography==2.9.2'
+          'cryptography==3.2'
       ],
       classifiers=[
           'Development Status :: 3 - Alpha',
