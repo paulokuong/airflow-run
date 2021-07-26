@@ -303,7 +303,7 @@ class AirflowRun(object):
             output.update(ports=ports_dic)
         return output
 
-    def start_postgresql(self):
+    def start_postgresql(self, max_connections=10000):
         """Start postgres instance.
         """
         os.system('docker pull {image}:{tag}'.format(
@@ -315,7 +315,8 @@ class AirflowRun(object):
             ))
             return
         self._logger.info('Starting postgres...')
-        command = ('docker run -d {port} {env} {volumes} {image}:{tag}').format(
+        command = ('docker run -d {port} {env} {volumes} {image}:{tag} '
+                   '-c max_connections={max_connections}').format(
             port='-p {port}:{port}'.format(
                 port=self.config['postgresql']['port']),
             env=' '.join(
@@ -325,7 +326,8 @@ class AirflowRun(object):
                     self.config['local_dir'],
                     self.config['postgresql']['data']),
             image=self.config['postgresql']['image'],
-            tag=self.config['postgresql']['tag'])
+            tag=self.config['postgresql']['tag'],
+            max_connections=max_connections)
         self._logger.debug('Running command: \n\n{}\n\n'.format(command))
         os.system(command)
 
