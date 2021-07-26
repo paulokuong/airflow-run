@@ -420,7 +420,7 @@ class AirflowRun(object):
             name += '_{}'.format(len(running_workers) + 1)
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        outbound_port = worker_log_server_port + len(running_workers)
+        outbound_port = int(worker_log_server_port) + len(running_workers)
         command = self.get_docker_run_command(
             ["worker", "-q", queue],
             ports=[(worker_log_server_port, outbound_port)])
