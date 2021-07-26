@@ -10,7 +10,7 @@ setup(name='airflow-run',
           'Simplified Airflow CLI Tool for Lauching CeleryExecutor Deployment'),
       install_requires=[
           'docker==4.3.1',
-          'pyyaml==5.3.1',
+          'pyyaml==5.4',
           'sqlalchemy>=1.3.13',
           'pika==1.1.0',
           'psycopg2-binary==2.8.5',
