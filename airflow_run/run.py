@@ -406,26 +406,27 @@ class AirflowRun(object):
         return self.start_scheduler(**kwargs)
 
     def start_worker(
-            self, queue, worker_log_server_port=8793, name='airflow_worker',
+            self, queue, port=8793, name='airflow_worker',
             detach=True):
         """Docker run airflow worker.
         Args:
             name (str): name of the container.
             detach (bool[optional]): True for detach container.
-            worker_log_server_port (int|str[optional]): worker log server port.
-                if str, format is: "inbound port:outbound port"
+            port (int): worker log server port.
         """
         self._logger.info('Starting worker with queue: {}...'.format(queue))
         running_workers = [
             i.get('name') for i in self.list() if name in i['name']]
-        if len(running_workers) > 0:
-            name += '_{}'.format(len(running_workers) + 1)
+        self._logger.info(f'Found workers: {running_workers}')
         self.check_required_connections(
             [self.check_db_connection, self.check_rabbitmq_connection])
-        outbound_port = int(worker_log_server_port) + len(running_workers)
+        if len(running_workers) > 0:
+            name += '_{}'.format(len(running_workers) + 1)
+        if int(port) == 8793:
+            port = port + len(running_workers)
         command = self.get_docker_run_command(
             ["worker", "-q", queue],
-            ports=[(worker_log_server_port, outbound_port)])
+            ports=[(port, port)])
         os.system(command)
 
     def start_airflow_worker(self, **kwargs):
@@ -529,17 +530,14 @@ def cli():
             'command name: (webserver, rabbitmq, scheduler, worker, flower, '
             'initdb, postgresql, list)'))
     parser.add_argument(
-        '--queue', dest='queue',
-        help='Queue name for the worker.')
-    parser.add_argument(
-        '--worker_log_server_port', dest='worker_log_server_port',
-        help='worker_log_server_port for worker')
+        '--queue', dest='queue', help='Queue name for the worker.')
+    parser.add_argument('--port', dest='port', help='port for worker')
     parser.set_defaults(queue='default')
     parser.set_defaults(config='./config.yaml')
     if os.getenv('AIRFLOWRUN_CONFIG_PATH'):
         parser.set_defaults(config=os.getenv('AIRFLOWRUN_CONFIG_PATH'))
     parser.set_defaults(dockerfile='./Dockerfile')
-    parser.set_defaults(worker_log_server_port=8793)
+    parser.set_defaults(port=8793)
     parser.set_defaults(log=False)
     args = parser.parse_args()
 
@@ -587,7 +585,7 @@ def cli():
             airflow_run.start_initdb()
             airflow_run.start_worker(
                 queue=args.queue,
-                worker_log_server_port=args.worker_log_server_port)
+                port=int(args.port))
         elif args.run in ["postgresql", "postgres"]:
             airflow_run.start_postgresql()
             airflow_run.start_initdb()
@@ -610,7 +608,7 @@ def cli():
             airflow_run.start_scheduler()
             airflow_run.start_worker(
                 queue=args.queue,
-                worker_log_server_port=args.worker_log_server_port)
+                port=int(args.port))
             airflow_run.start_webserver()
         else:
             print('\nAvailable services:')
